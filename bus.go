@@ -7,8 +7,8 @@ import (
 
 // Bus struct
 type Bus struct {
-	sync.RWMutex
 	events map[string][]*event
+	mux    sync.RWMutex
 }
 
 // New - return a new Bus object
@@ -54,25 +54,17 @@ func (b *Bus) addEvents(topic string, isUnique bool, es []Event) {
 		return
 	}
 
-	b.Lock()
-	defer b.Unlock()
-
-	events := b.events[topic]
-	if len(events) == 0 {
-		events = make([]*event, 0, 8)
-	}
+	b.mux.Lock()
+	defer b.mux.Unlock()
 
 	for _, e := range es {
-		events = append(events, newEvent(e, isUnique))
+		b.events[topic] = append(b.events[topic], newEvent(e, isUnique))
 	}
-
-	b.events[topic] = events
-	return
 }
 
 func (b *Bus) removeEvents(topic string, es []Event) {
-	b.Lock()
-	defer b.Unlock()
+	b.mux.Lock()
+	defer b.mux.Unlock()
 
 	if topic == ALL_TOPICS {
 		b.events = make(map[string][]*event)
@@ -91,10 +83,10 @@ func (b *Bus) removeEvents(topic string, es []Event) {
 
 	for _, e := range es {
 		tag := reflect.ValueOf(e)
-		for i, event := range events {
-			if event.tag == tag {
+		for i := 0; i < len(events); i++ {
+			if events[i].tag == tag {
 				events = append(events[:i], events[i+1:]...)
-				break
+				i--
 			}
 		}
 	}
@@ -107,8 +99,8 @@ func (b *Bus) removeEvents(topic string, es []Event) {
 }
 
 func (b *Bus) dispatch(topic string, data interface{}) {
-	b.RLock()
-	defer b.RUnlock()
+	b.mux.RLock()
+	defer b.mux.RUnlock()
 
 	if topic == ALL_TOPICS {
 		for _, es := range b.events {
