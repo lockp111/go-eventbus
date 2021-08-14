@@ -4,8 +4,8 @@ import (
 	"reflect"
 )
 
-// ALL_TOPICS - The key use to listen or remove all the topics
-const ALL_TOPICS = "*"
+// ALL - The key use to listen all the topics
+const ALL = "*"
 
 // Event interface
 type Event interface {

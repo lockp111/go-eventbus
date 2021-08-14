@@ -106,7 +106,7 @@ func (b *Bus) getEvents(topic string) []*event {
 	b.mux.Lock()
 	defer b.mux.Unlock()
 
-	events := make([]*event, 0, len(b.events[topic])+len(b.events[ALL_TOPICS]))
+	events := make([]*event, 0, len(b.events[topic])+len(b.events[ALL]))
 	for _, e := range b.events[topic] {
 		if e.isUnique {
 			if e.hasCalled {
@@ -117,8 +117,8 @@ func (b *Bus) getEvents(topic string) []*event {
 		events = append(events, e)
 	}
 
-	if topic != ALL_TOPICS {
-		for _, e := range b.events[ALL_TOPICS] {
+	if topic != ALL {
+		for _, e := range b.events[ALL] {
 			if e.isUnique {
 				if e.hasCalled {
 					continue

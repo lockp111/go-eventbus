@@ -60,11 +60,11 @@ func TestOnAll(t *testing.T) {
 
 	onAll := &N{&n, ""}
 
-	o.On(ALL_TOPICS, onAll)
+	o.On(ALL, onAll)
 
 	o.Trigger("foo", "foo").Trigger("bar", "bar")
 
-	o.Off(ALL_TOPICS, onAll)
+	o.Off(ALL, onAll)
 
 	o.Trigger("bar", "bar").Trigger("foo", "bar")
 
@@ -87,7 +87,7 @@ func TestOffAll(t *testing.T) {
 
 	o.On("bar", fn)
 
-	o.Off(ALL_TOPICS)
+	o.Off(ALL)
 
 	o.Trigger("foo").Trigger("bar").Trigger("foo bar")
 
