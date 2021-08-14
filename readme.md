@@ -76,7 +76,7 @@ You can unsubscribe all topics for example:
 ```go
 bus.On("ready", &ready{}, &ready{})
 bus.On("run", &run{})
-bus.Off(ALL_TOPICS)
+bus.Off(ALL)
 ```
 
 ### Trigger(topic string, msg ...interface{})
@@ -96,5 +96,5 @@ bus.Trigger("ready", &struct{"1"}, &struct{"2"})
 You can also dispatch all events for example:
 
 ```go
-bus.Trigger(ALL_TOPICS, &struct{"1"})
+bus.Trigger(ALL, &struct{"1"})
 ```
