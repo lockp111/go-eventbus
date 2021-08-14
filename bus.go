@@ -7,8 +7,8 @@ import (
 
 // Bus struct
 type Bus struct {
+	mux    sync.Mutex
 	events map[string][]*event
-	mux    sync.RWMutex
 }
 
 // New - return a new Bus object
@@ -36,6 +36,14 @@ func (b *Bus) Off(topic string, e ...Event) *Bus {
 	return b
 }
 
+// Clean - clear all events
+func (b *Bus) Clean() *Bus {
+	b.mux.Lock()
+	defer b.mux.Unlock()
+	b.events = make(map[string][]*event)
+	return b
+}
+
 // Trigger - dispatch event
 func (b *Bus) Trigger(topic string, msg ...interface{}) *Bus {
 	if len(msg) != 0 {
@@ -58,18 +66,13 @@ func (b *Bus) addEvents(topic string, isUnique bool, es []Event) {
 	defer b.mux.Unlock()
 
 	for _, e := range es {
-		b.events[topic] = append(b.events[topic], newEvent(e, isUnique))
+		b.events[topic] = append(b.events[topic], newEvent(e, topic, isUnique))
 	}
 }
 
 func (b *Bus) removeEvents(topic string, es []Event) {
 	b.mux.Lock()
 	defer b.mux.Unlock()
-
-	if topic == ALL_TOPICS {
-		b.events = make(map[string][]*event)
-		return
-	}
 
 	if len(es) == 0 {
 		delete(b.events, topic)
@@ -93,29 +96,55 @@ func (b *Bus) removeEvents(topic string, es []Event) {
 
 	if len(events) == 0 {
 		delete(b.events, topic)
-	} else {
-		b.events[topic] = events
+		return
 	}
+
+	b.events[topic] = events
+}
+
+func (b *Bus) getEvents(topic string) []*event {
+	b.mux.Lock()
+	defer b.mux.Unlock()
+
+	events := make([]*event, 0, len(b.events[topic])+len(b.events[ALL_TOPICS]))
+	for _, e := range b.events[topic] {
+		if e.isUnique {
+			if e.hasCalled {
+				continue
+			}
+			e.hasCalled = true
+		}
+		events = append(events, e)
+	}
+
+	if topic != ALL_TOPICS {
+		for _, e := range b.events[ALL_TOPICS] {
+			if e.isUnique {
+				if e.hasCalled {
+					continue
+				}
+				e.hasCalled = true
+			}
+			events = append(events, e)
+		}
+	}
+	return events
 }
 
 func (b *Bus) dispatch(topic string, data interface{}) {
-	b.mux.RLock()
-	defer b.mux.RUnlock()
+	var (
+		events  = b.getEvents(topic)
+		removes = make(map[string][]Event)
+	)
 
-	if topic == ALL_TOPICS {
-		for _, es := range b.events {
-			for _, e := range es {
-				e.dispatch(data)
-			}
-		}
-	} else {
-		for _, e := range b.events[topic] {
-			e.dispatch(data)
-		}
-
-		for _, e := range b.events[ALL_TOPICS] {
-			e.dispatch(data)
+	for _, e := range events {
+		e.Dispatch(data)
+		if e.isUnique && e.hasCalled {
+			removes[e.topic] = append(removes[e.topic], e.Event)
 		}
 	}
 
+	for k, v := range removes {
+		b.removeEvents(k, v)
+	}
 }

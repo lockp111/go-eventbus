@@ -43,9 +43,7 @@ func (fn *FN) Dispatch(data interface{}) {
 }
 
 func TestOn(t *testing.T) {
-
 	o := New()
-
 	n := 0
 
 	o.On("foo", &N{&n, ""}).On("bar", &N{&n, ""}).On("foo", &N{&n, ""})
@@ -119,7 +117,6 @@ func TestOff(t *testing.T) {
 }
 
 func TestRace(t *testing.T) {
-
 	o := New()
 	n := 0
 
