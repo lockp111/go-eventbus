@@ -11,7 +11,7 @@ type N struct {
 	s string
 }
 
-func (n *N) Dispatch(data interface{}) {
+func (n *N) Dispatch(data any) {
 	s, ok := data.(string)
 	if ok {
 		n.s = s
@@ -30,7 +30,7 @@ type FN struct {
 	i *int
 }
 
-func (fn *FN) Dispatch(data interface{}) {
+func (fn *FN) Dispatch(data any) {
 	req, ok := data.(*input)
 	if !ok {
 		return

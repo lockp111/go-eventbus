@@ -25,7 +25,7 @@ Subscribe event
 type ready struct{
 }
 
-func (e ready) Dispatch(msg interface{}){
+func (e ready) Dispatch(msg any){
     fmt.Println("I am ready!")
 }
 
@@ -38,7 +38,7 @@ You can also subscribe multiple events for example:
 type run struct{
 }
 
-func (e run) Dispatch(msg interface{}){
+func (e run) Dispatch(msg any){
     fmt.Println("I am run!")
 }
 
@@ -79,7 +79,7 @@ bus.On("run", &run{})
 bus.Off(ALL)
 ```
 
-### Trigger(topic string, msg ...interface{})
+### Trigger(topic string, msg ...any)
 
 Dispatch events
 

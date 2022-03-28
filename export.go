@@ -23,6 +23,6 @@ func Clean() *Bus {
 }
 
 // Trigger - dispatch event
-func Trigger(topic string, msg ...interface{}) *Bus {
+func Trigger(topic string, msg ...any) *Bus {
 	return defaultBus.Trigger(topic, msg...)
 }

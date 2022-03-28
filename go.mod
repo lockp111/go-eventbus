@@ -1,3 +1,3 @@
 module github.com/lockp111/go-eventbus
 
-go 1.16
+go 1.18

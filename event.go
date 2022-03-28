@@ -9,7 +9,7 @@ const ALL = "*"
 
 // Event interface
 type Event interface {
-	Dispatch(data interface{})
+	Dispatch(data any)
 }
 
 // event struct

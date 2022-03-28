@@ -45,7 +45,7 @@ func (b *Bus) Clean() *Bus {
 }
 
 // Trigger - dispatch event
-func (b *Bus) Trigger(topic string, msg ...interface{}) *Bus {
+func (b *Bus) Trigger(topic string, msg ...any) *Bus {
 	if len(msg) != 0 {
 		for _, d := range msg {
 			b.dispatch(topic, d)
@@ -131,7 +131,7 @@ func (b *Bus) getEvents(topic string) []*event {
 	return events
 }
 
-func (b *Bus) dispatch(topic string, data interface{}) {
+func (b *Bus) dispatch(topic string, data any) {
 	var (
 		events  = b.getEvents(topic)
 		removes = make(map[string][]Event)
