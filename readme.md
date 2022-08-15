@@ -14,7 +14,7 @@ go get -u github.com/lockp111/go-eventbus
 Create a new bus struct reference
 
 ```go
-bus := eventbus.New()
+bus := eventbus.New[string]()
 ```
 
 ### On(topic string, e ...Event)
@@ -25,7 +25,7 @@ Subscribe event
 type ready struct{
 }
 
-func (e ready) Dispatch(msg any){
+func (e ready) Dispatch(_ ...string){
     fmt.Println("I am ready!")
 }
 
@@ -38,7 +38,7 @@ You can also subscribe multiple events for example:
 type run struct{
 }
 
-func (e run) Dispatch(msg any){
+func (e run) Dispatch(_ ...string){
     fmt.Println("I am run!")
 }
 
@@ -90,11 +90,11 @@ bus.Trigger("ready")
 You can also dispatch multiple events for example:
 
 ```go
-bus.Trigger("ready", &struct{"1"}, &struct{"2"})
+bus.Trigger("ready", "1", "2")
 ```
 
 You can also dispatch all events for example:
 
 ```go
-bus.Trigger(ALL, &struct{"1"})
+bus.Trigger(ALL, "1")
 ```
