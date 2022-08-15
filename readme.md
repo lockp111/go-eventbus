@@ -76,7 +76,7 @@ You can unsubscribe all topics for example:
 ```go
 bus.On("ready", &ready{}, &ready{})
 bus.On("run", &run{})
-bus.Off(ALL)
+bus.Clean()
 ```
 
 ### Trigger(topic string, msg ...any)
