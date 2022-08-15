@@ -11,14 +11,12 @@ type N struct {
 	s string
 }
 
-func (n *N) Dispatch(data any) {
-	s, ok := data.(string)
-	if ok {
+func (n *N) Dispatch(data ...string) {
+	*n.i++
+	for _, s := range data {
 		n.s = s
 		log.Println(s)
 	}
-
-	*n.i++
 }
 
 type input struct {
@@ -30,20 +28,18 @@ type FN struct {
 	i *int
 }
 
-func (fn *FN) Dispatch(data any) {
-	req, ok := data.(*input)
-	if !ok {
+func (fn *FN) Dispatch(data ...input) {
+	*fn.i++
+	if len(data) == 0 {
 		return
 	}
-
-	*fn.i++
-	if req.b != true || req.s != "bar" {
+	if data[0].b != true || data[0].s != "bar" {
 		log.Fatal("The arguments must be correctly passed to the callback")
 	}
 }
 
 func TestOn(t *testing.T) {
-	o := New()
+	o := New[string]()
 	n := 0
 
 	o.On("foo", &N{&n, ""}).On("bar", &N{&n, ""}).On("foo", &N{&n, ""})
@@ -55,7 +51,7 @@ func TestOn(t *testing.T) {
 }
 
 func TestOnAll(t *testing.T) {
-	o := New()
+	o := New[string]()
 	n := 0
 
 	onAll := &N{&n, ""}
@@ -78,8 +74,8 @@ func TestOnAll(t *testing.T) {
 
 }
 
-func TestOffAll(t *testing.T) {
-	o := New()
+func TestClean(t *testing.T) {
+	o := New[string]()
 	n := 0
 
 	fn := &N{&n, ""}
@@ -87,7 +83,7 @@ func TestOffAll(t *testing.T) {
 
 	o.On("bar", fn)
 
-	o.Off(ALL)
+	o.Clean()
 
 	o.Trigger("foo").Trigger("bar").Trigger("foo bar")
 
@@ -97,7 +93,7 @@ func TestOffAll(t *testing.T) {
 }
 
 func TestOff(t *testing.T) {
-	o := New()
+	o := New[string]()
 	n := 0
 
 	onFoo1 := &N{&n, ""}
@@ -117,7 +113,7 @@ func TestOff(t *testing.T) {
 }
 
 func TestRace(t *testing.T) {
-	o := New()
+	o := New[string]()
 	n := 0
 
 	asyncTask := func(wg *sync.WaitGroup) {
@@ -146,7 +142,7 @@ func TestRace(t *testing.T) {
 }
 
 func TestOne(t *testing.T) {
-	o := New()
+	o := New[string]()
 	n := 0
 
 	onFoo := &N{&n, ""}
@@ -162,12 +158,12 @@ func TestOne(t *testing.T) {
 }
 
 func TestArguments(t *testing.T) {
-	o := New()
+	o := New[input]()
 	n := 0
 	fn := &FN{&n}
 	o.On("foo", fn)
 
-	o.Trigger("foo", &input{"bar", true})
+	o.Trigger("foo", input{"bar", true})
 
 	if n != 1 {
 		t.Errorf("The counter is %d instead of being %d", n, 1)
@@ -175,7 +171,7 @@ func TestArguments(t *testing.T) {
 }
 
 func TestTrigger(t *testing.T) {
-	o := New()
+	o := New[interface{}]()
 	// the trigger without any listener should not throw errors
 	o.Trigger("foo")
 }
@@ -187,7 +183,7 @@ func TestTrigger(t *testing.T) {
 var eventsList = []string{"foo", "bar", "baz", "boo"}
 
 func BenchmarkOnTrigger(b *testing.B) {
-	o := New()
+	o := New[string]()
 	n := 0
 
 	fn := &N{&n, ""}

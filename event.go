@@ -8,19 +8,19 @@ import (
 const ALL = "*"
 
 // Event interface
-type Event interface {
-	Dispatch(data any)
+type Event[T any] interface {
+	Dispatch(data ...T)
 }
 
 // event struct
-type event struct {
-	Event
+type event[T any] struct {
+	Event[T]
 	topic     string
 	tag       reflect.Value
 	isUnique  bool
 	hasCalled bool
 }
 
-func newEvent(e Event, topic string, isUnique bool) *event {
-	return &event{e, topic, reflect.ValueOf(e), isUnique, false}
+func newEvent[T any](e Event[T], topic string, isUnique bool) *event[T] {
+	return &event[T]{e, topic, reflect.ValueOf(e), isUnique, false}
 }
