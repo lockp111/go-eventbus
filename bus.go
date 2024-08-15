@@ -2,19 +2,20 @@ package eventbus
 
 import (
 	"reflect"
-	"sync"
+	"sync/atomic"
+
+	"github.com/lockp111/go-cmap"
 )
 
 // Bus struct
 type Bus[T any] struct {
-	mux    sync.Mutex
-	events map[string][]*event[T]
+	events cmap.ConcurrentMap[string, []*event[T]]
 }
 
 // New - return a new Bus object
 func New[T any]() *Bus[T] {
 	return &Bus[T]{
-		events: make(map[string][]*event[T]),
+		events: cmap.New[[]*event[T]](),
 	}
 }
 
@@ -38,9 +39,7 @@ func (b *Bus[T]) Off(topic string, e ...Event[T]) *Bus[T] {
 
 // Clean - clear all events
 func (b *Bus[T]) Clean() *Bus[T] {
-	b.mux.Lock()
-	defer b.mux.Unlock()
-	b.events = make(map[string][]*event[T])
+	b.events = cmap.New[[]*event[T]]()
 	return b
 }
 
@@ -54,87 +53,79 @@ func (b *Bus[T]) addEvents(topic string, isUnique bool, es []Event[T]) {
 	if len(es) == 0 {
 		return
 	}
-
-	b.mux.Lock()
-	defer b.mux.Unlock()
-
 	for _, e := range es {
-		b.events[topic] = append(b.events[topic], newEvent(e, topic, isUnique))
+		b.events.Upsert(topic, func(oldValue []*event[T], exist bool) []*event[T] {
+			return append(oldValue, newEvent(e, topic, isUnique))
+		})
 	}
 }
 
 func (b *Bus[T]) removeEvents(topic string, es []Event[T]) {
-	b.mux.Lock()
-	defer b.mux.Unlock()
-
 	if len(es) == 0 {
-		delete(b.events, topic)
+		b.events.Remove(topic)
 		return
 	}
 
-	events := b.events[topic]
-	if len(events) == 0 {
+	if b.events.Count() == 0 {
 		return
 	}
 
-	for _, e := range es {
-		tag := reflect.ValueOf(e)
-		for i := 0; i < len(events); i++ {
-			if events[i].tag == tag {
-				events = append(events[:i], events[i+1:]...)
-				i--
-			}
-		}
-	}
-
-	if len(events) == 0 {
-		delete(b.events, topic)
-		return
-	}
-
-	b.events[topic] = events
-}
-
-func (b *Bus[T]) getEvents(topic string) []*event[T] {
-	b.mux.Lock()
-	defer b.mux.Unlock()
-
-	events := make([]*event[T], 0, len(b.events[topic])+len(b.events[ALL]))
-	for _, e := range b.events[topic] {
-		if e.isUnique {
-			if e.hasCalled {
-				continue
-			}
-			e.hasCalled = true
-		}
-		events = append(events, e)
-	}
-
-	if topic != ALL {
-		for _, e := range b.events[ALL] {
-			if e.isUnique {
-				if e.hasCalled {
-					continue
+	b.events.Upsert(topic, func(oldValue []*event[T], exist bool) []*event[T] {
+		events := make([]*event[T], 0, len(oldValue))
+		for _, e := range es {
+			tag := reflect.ValueOf(e)
+			for i := 0; i < len(events); i++ {
+				if events[i].tag == tag {
+					events = append(events[:i], events[i+1:]...)
+					i--
 				}
-				e.hasCalled = true
 			}
-			events = append(events, e)
 		}
-	}
-	return events
+		return events
+	})
+
+	b.events.RemoveCb(topic, func(value []*event[T], exists bool) bool {
+		return len(value) == 0
+	})
 }
 
 func (b *Bus[T]) dispatch(topic string, data []T) {
 	var (
-		events  = b.getEvents(topic)
 		removes = make(map[string][]Event[T])
 	)
 
-	for _, e := range events {
-		e.Dispatch(data...)
-		if e.isUnique && e.hasCalled {
-			removes[e.topic] = append(removes[e.topic], e.Event)
+	b.events.GetCb(topic, func(events []*event[T], exists bool) {
+		if !exists {
+			return
 		}
+		for _, e := range events {
+			if !e.isUnique {
+				e.Dispatch(data...)
+				continue
+			}
+			if atomic.CompareAndSwapUint32(&e.hasCalled, 0, 1) {
+				e.Dispatch(data...)
+				removes[e.topic] = append(removes[e.topic], e.Event)
+			}
+		}
+	})
+
+	if topic != ALL {
+		b.events.GetCb(ALL, func(events []*event[T], exists bool) {
+			if !exists {
+				return
+			}
+			for _, e := range events {
+				if !e.isUnique {
+					e.Dispatch(data...)
+					continue
+				}
+				if atomic.CompareAndSwapUint32(&e.hasCalled, 0, 1) {
+					e.Dispatch(data...)
+					removes[e.topic] = append(removes[e.topic], e.Event)
+				}
+			}
+		})
 	}
 
 	for k, v := range removes {

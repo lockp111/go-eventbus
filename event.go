@@ -18,9 +18,9 @@ type event[T any] struct {
 	topic     string
 	tag       reflect.Value
 	isUnique  bool
-	hasCalled bool
+	hasCalled uint32
 }
 
 func newEvent[T any](e Event[T], topic string, isUnique bool) *event[T] {
-	return &event[T]{e, topic, reflect.ValueOf(e), isUnique, false}
+	return &event[T]{e, topic, reflect.ValueOf(e), isUnique, 0}
 }
