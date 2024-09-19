@@ -9,7 +9,7 @@ const ALL = "*"
 
 // Event interface
 type Event[T any] interface {
-	Dispatch(data ...T)
+	Dispatch(topic string, data ...T)
 }
 
 // event struct

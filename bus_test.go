@@ -15,7 +15,7 @@ type N struct {
 	s string
 }
 
-func (n *N) Dispatch(data ...string) {
+func (n *N) Dispatch(topic string, data ...string) {
 	*n.i++
 	for _, s := range data {
 		n.s = s
@@ -32,7 +32,7 @@ type FN struct {
 	i *int
 }
 
-func (fn *FN) Dispatch(data ...input) {
+func (fn *FN) Dispatch(topic string, data ...input) {
 	*fn.i++
 	if len(data) == 0 {
 		return
@@ -207,7 +207,7 @@ type benchmarkEvent struct {
 	counter *int64
 }
 
-func (e *benchmarkEvent) Dispatch(_ ...string) {
+func (e *benchmarkEvent) Dispatch(topic string, _ ...string) {
 	atomic.AddInt64(e.counter, 1)
 }
 

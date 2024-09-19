@@ -100,11 +100,11 @@ func (b *Bus[T]) dispatch(topic string, data []T) {
 		}
 		for _, e := range events {
 			if !e.isUnique {
-				e.Dispatch(data...)
+				e.Dispatch(topic, data...)
 				continue
 			}
 			if atomic.CompareAndSwapUint32(&e.hasCalled, 0, 1) {
-				e.Dispatch(data...)
+				e.Dispatch(topic, data...)
 				removes[e.topic] = append(removes[e.topic], e.Event)
 			}
 		}
@@ -117,12 +117,12 @@ func (b *Bus[T]) dispatch(topic string, data []T) {
 			}
 			for _, e := range events {
 				if !e.isUnique {
-					e.Dispatch(data...)
+					e.Dispatch(topic, data...)
 					continue
 				}
 				if atomic.CompareAndSwapUint32(&e.hasCalled, 0, 1) {
-					e.Dispatch(data...)
-					removes[e.topic] = append(removes[e.topic], e.Event)
+					e.Dispatch(topic, data...)
+					removes[ALL] = append(removes[ALL], e.Event)
 				}
 			}
 		})
