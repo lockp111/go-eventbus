@@ -105,12 +105,33 @@ func TestOff(t *testing.T) {
 	onFoo2 := &N{&n, ""}
 
 	o.On("foo", onFoo1).On("foo", onFoo2)
-	o.Trigger("foo")
+	o.Trigger("foo", "test1")
+	if onFoo1.s != "test1" {
+		t.Fail()
+	}
+	if onFoo2.s != "test1" {
+		t.Fail()
+	}
 
 	o.Off("foo", onFoo1).Off("foo", onFoo2).On("foo", onFoo1)
-	o.Trigger("foo")
+	o.Trigger("foo", "test2")
+	if onFoo1.s != "test2" {
+		t.Fail()
+	}
+	if onFoo2.s == "test2" {
+		t.Fail()
+	}
 
-	if n != 3 {
+	o.On("foo", onFoo2).Off("foo", onFoo1)
+	o.Trigger("foo", "test3")
+	if onFoo1.s == "test3" {
+		t.Fail()
+	}
+	if onFoo2.s != "test3" {
+		t.Fail()
+	}
+
+	if n != 4 {
 		t.Errorf("The counter is %d instead of being %d", n, 3)
 	}
 

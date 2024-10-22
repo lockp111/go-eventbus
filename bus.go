@@ -66,22 +66,19 @@ func (b *Bus[T]) removeEvents(topic string, es []Event[T]) {
 		return
 	}
 
-	if b.events.Count() == 0 {
-		return
-	}
-
 	b.events.Upsert(topic, func(oldValue []*event[T], exist bool) []*event[T] {
-		events := make([]*event[T], 0, len(oldValue))
+		if !exist || len(oldValue) == 0 {
+			return []*event[T]{}
+		}
 		for _, e := range es {
 			tag := reflect.ValueOf(e)
-			for i := 0; i < len(events); i++ {
-				if events[i].tag == tag {
-					events = append(events[:i], events[i+1:]...)
-					i--
+			for i, v := range oldValue {
+				if v.tag == tag {
+					oldValue = append(oldValue[:i], oldValue[i+1:]...)
 				}
 			}
 		}
-		return events
+		return oldValue
 	})
 
 	b.events.RemoveCb(topic, func(value []*event[T], exists bool) bool {
