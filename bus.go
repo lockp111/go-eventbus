@@ -7,6 +7,8 @@ import (
 	"github.com/lockp111/go-cmap"
 )
 
+type OffCallback[T any] func(events []*event[T], exists bool)
+
 // Bus struct
 type Bus[T any] struct {
 	events cmap.ConcurrentMap[string, []*event[T]]
@@ -20,20 +22,26 @@ func New[T any]() *Bus[T] {
 }
 
 // On - register topic event and return error
-func (b *Bus[T]) On(topic string, e ...Event[T]) *Bus[T] {
-	b.addEvents(topic, false, e)
+func (b *Bus[T]) On(topic string, e Event[T]) *Bus[T] {
+	b.addEvent(topic, false, e)
 	return b
 }
 
 // Once - register once event and return error
-func (b *Bus[T]) Once(topic string, e ...Event[T]) *Bus[T] {
-	b.addEvents(topic, true, e)
+func (b *Bus[T]) Once(topic string, e Event[T]) *Bus[T] {
+	b.addEvent(topic, true, e)
 	return b
 }
 
 // Off - remove topic event
-func (b *Bus[T]) Off(topic string, e ...Event[T]) *Bus[T] {
-	b.removeEvents(topic, e)
+func (b *Bus[T]) Off(topic string, es ...Event[T]) *Bus[T] {
+	b.removeEvents(topic, es)
+	return b
+}
+
+// OffCb - remove topic event and callback
+func (b *Bus[T]) OffCb(topic string, cb OffCallback[T], es ...Event[T]) *Bus[T] {
+	b.removeEventsCb(topic, es, cb)
 	return b
 }
 
@@ -49,20 +57,35 @@ func (b *Bus[T]) Trigger(topic string, msg ...T) *Bus[T] {
 	return b
 }
 
-func (b *Bus[T]) addEvents(topic string, isUnique bool, es []Event[T]) {
-	if len(es) == 0 {
-		return
-	}
-	for _, e := range es {
-		b.events.Upsert(topic, func(oldValue []*event[T], exist bool) []*event[T] {
-			return append(oldValue, newEvent(e, topic, isUnique))
-		})
-	}
+// Count - topic count events
+func (b *Bus[T]) Count(topic string) int {
+	es, _ := b.events.Get(topic)
+	return len(es)
+}
+
+// Total - total events
+func (b *Bus[T]) Total() int {
+	return b.events.Count()
+}
+
+func (b *Bus[T]) addEvent(topic string, isUnique bool, e Event[T]) {
+	b.events.Upsert(topic, func(oldValue []*event[T], _ bool) []*event[T] {
+		return append(oldValue, newEvent(e, topic, isUnique))
+	})
 }
 
 func (b *Bus[T]) removeEvents(topic string, es []Event[T]) {
+	b.removeEventsCb(topic, es, nil)
+}
+
+func (b *Bus[T]) removeEventsCb(topic string, es []Event[T], cb OffCallback[T]) {
 	if len(es) == 0 {
-		b.events.Remove(topic)
+		b.events.RemoveCb(topic, func(_ []*event[T], exists bool) bool {
+			if cb != nil {
+				cb([]*event[T]{}, exists)
+			}
+			return true
+		})
 		return
 	}
 
@@ -82,6 +105,9 @@ func (b *Bus[T]) removeEvents(topic string, es []Event[T]) {
 	})
 
 	b.events.RemoveCb(topic, func(value []*event[T], exists bool) bool {
+		if cb != nil {
+			cb(value, exists)
+		}
 		return len(value) == 0
 	})
 }
