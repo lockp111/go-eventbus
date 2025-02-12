@@ -7,7 +7,7 @@ import (
 	"github.com/lockp111/go-cmap"
 )
 
-type OffCallback[T any] func(events []*event[T], exists bool)
+type OffCallback[T any] func(count int, exists bool)
 
 // Bus struct
 type Bus[T any] struct {
@@ -82,7 +82,7 @@ func (b *Bus[T]) removeEventsCb(topic string, es []Event[T], cb OffCallback[T]) 
 	if len(es) == 0 {
 		b.events.RemoveCb(topic, func(_ []*event[T], exists bool) bool {
 			if cb != nil {
-				cb([]*event[T]{}, exists)
+				cb(0, exists)
 			}
 			return true
 		})
@@ -105,10 +105,11 @@ func (b *Bus[T]) removeEventsCb(topic string, es []Event[T], cb OffCallback[T]) 
 	})
 
 	b.events.RemoveCb(topic, func(value []*event[T], exists bool) bool {
+		count := len(value)
 		if cb != nil {
-			cb(value, exists)
+			cb(count, exists)
 		}
-		return len(value) == 0
+		return count == 0
 	})
 }
 
