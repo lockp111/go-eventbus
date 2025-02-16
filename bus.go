@@ -57,6 +57,12 @@ func (b *Bus[T]) Trigger(topic string, msg ...T) *Bus[T] {
 	return b
 }
 
+// TriggerAll - dispatch all topics
+func (b *Bus[T]) TriggerAll(msg ...T) *Bus[T] {
+	b.dispatchAll(msg...)
+	return b
+}
+
 // Count - topic count events
 func (b *Bus[T]) Count(topic string) int {
 	es, _ := b.events.Get(topic)
@@ -122,16 +128,7 @@ func (b *Bus[T]) dispatch(topic string, data []T) {
 		if !exists {
 			return
 		}
-		for _, e := range events {
-			if !e.isUnique {
-				e.Dispatch(topic, data...)
-				continue
-			}
-			if atomic.CompareAndSwapUint32(&e.hasCalled, 0, 1) {
-				e.Dispatch(topic, data...)
-				removes[e.topic] = append(removes[e.topic], e.Event)
-			}
-		}
+		dispatch(topic, events, removes, data...)
 	})
 
 	if topic != ALL {
@@ -139,20 +136,38 @@ func (b *Bus[T]) dispatch(topic string, data []T) {
 			if !exists {
 				return
 			}
-			for _, e := range events {
-				if !e.isUnique {
-					e.Dispatch(topic, data...)
-					continue
-				}
-				if atomic.CompareAndSwapUint32(&e.hasCalled, 0, 1) {
-					e.Dispatch(topic, data...)
-					removes[ALL] = append(removes[ALL], e.Event)
-				}
-			}
+			dispatch(ALL, events, removes, data...)
 		})
 	}
 
 	for k, v := range removes {
 		b.removeEvents(k, v)
+	}
+}
+
+func (b *Bus[T]) dispatchAll(data ...T) {
+	var (
+		removes = make(map[string][]Event[T])
+	)
+
+	b.events.IterCb(func(topic string, events []*event[T]) {
+		dispatch(topic, events, removes, data...)
+	})
+
+	for k, v := range removes {
+		b.removeEvents(k, v)
+	}
+}
+
+func dispatch[T any](topic string, events []*event[T], removes map[string][]Event[T], data ...T) {
+	for _, e := range events {
+		if !e.isUnique {
+			e.Dispatch(topic, data...)
+			continue
+		}
+		if atomic.CompareAndSwapUint32(&e.hasCalled, 0, 1) {
+			e.Dispatch(topic, data...)
+			removes[e.topic] = append(removes[e.topic], e.Event)
+		}
 	}
 }
