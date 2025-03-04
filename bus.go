@@ -81,14 +81,14 @@ func (b *Bus[T]) addEvent(topic string, isUnique bool, e Event[T]) {
 }
 
 func (b *Bus[T]) removeEvents(topic string, es []Event[T]) {
-	b.removeEventsCb(topic, es, nil)
+	b.removeEventsCb(topic, es)
 }
 
-func (b *Bus[T]) removeEventsCb(topic string, es []Event[T], cb OffCallback) {
+func (b *Bus[T]) removeEventsCb(topic string, es []Event[T], cb ...OffCallback) {
 	if len(es) == 0 {
 		b.events.RemoveCb(topic, func(_ []*event[T], exists bool) bool {
-			if cb != nil {
-				cb(0, exists)
+			for _, callback := range cb {
+				callback(0, exists)
 			}
 			return true
 		})
@@ -112,8 +112,8 @@ func (b *Bus[T]) removeEventsCb(topic string, es []Event[T], cb OffCallback) {
 
 	b.events.RemoveCb(topic, func(value []*event[T], exists bool) bool {
 		count := len(value)
-		if cb != nil {
-			cb(count, exists)
+		for _, callback := range cb {
+			callback(count, exists)
 		}
 		return count == 0
 	})
