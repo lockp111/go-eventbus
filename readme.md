@@ -1,100 +1,221 @@
 # go-eventbus
 
-An golang event bus model
+A high-performance event bus model for Go, supporting generics, thread-safe, and suitable for high-concurrency operations.
 
-## Usage
+[简体中文](README-zh.md) | English
+
+## Features
+
+- **Type Safety**: Utilizing Go 1.18+ generics support for type-safe event handling
+- **High Performance**: Optimized for concurrent processing, suitable for high-load scenarios
+- **Thread Safety**: Support for high-concurrency read/write operations
+- **Chainable API**: Convenient API design with chainable method calls
+- **Flexible Subscription**: Support for one-time events and persistent subscriptions
+
+## Installation
 
 ### go get
 ```go
 go get -u github.com/lockp111/go-eventbus
 ```
 
-#### New()
+## Quick Start
 
-Create a new bus struct reference
+Create an event bus instance:
 
 ```go
+import "github.com/lockp111/go-eventbus"
+
+// Create an event bus that handles string messages
 bus := eventbus.New[string]()
 ```
 
-### On(topic string, e ...Event)
+## Usage Examples
 
-Subscribe event
+### Basic Usage
+
+#### Creating an Event Handler
 
 ```go
-type ready struct{
+// Define an event handler
+type MessageHandler struct{}
+
+// Implement the Dispatch method
+func (h *MessageHandler) Dispatch(topic string, messages []string) {
+    fmt.Printf("Received message for topic %s: %v\n", topic, messages)
 }
 
-func (e ready) Dispatch(_ ...string){
-    fmt.Println("I am ready!")
+// Subscribe to an event
+bus.On("message", &MessageHandler{})
+
+// Trigger an event
+bus.Trigger("message", "Hello", "World")
+```
+
+### Subscribing to Events - On(topic string, e Event[T]) *Bus[T]
+
+Subscribe to events for a specific topic:
+
+```go
+type ReadyHandler struct{}
+
+func (e *ReadyHandler) Dispatch(topic string, data []string) {
+    fmt.Printf("Topic %s is ready, data: %v\n", topic, data)
 }
 
-bus.On("ready", &ready{})
+// Subscribe to a single event
+bus.On("ready", &ReadyHandler{})
+
+// Chain subscribe to multiple topics
+bus.On("start", &StartHandler{}).On("stop", &StopHandler{})
 ```
 
-You can also subscribe multiple events for example:
+### One-time Subscription - Once(topic string, e Event[T]) *Bus[T]
+
+Subscribe to a one-time event (automatically unsubscribed after triggering once):
 
 ```go
-type run struct{
+type InitHandler struct{}
+
+func (e *InitHandler) Dispatch(topic string, data []string) {
+    fmt.Println("System initialization completed")
 }
 
-func (e run) Dispatch(_ ...string){
-    fmt.Println("I am run!")
-}
-
-bus.On("ready", &ready{}, &ready{}).On("run", &run{})
+// Subscribe to a one-time event
+bus.Once("init", &InitHandler{})
 ```
 
-### Off(topic string, e ...Event)
+### Unsubscribing - Off(topic string, es ...Event[T]) *Bus[T]
 
-Unsubscribe event
-
-```go
-e := &ready{}
-bus.On("ready", e)
-bus.Off("ready", e)
-```
-
-You can also unsubscribe multiple events for example:
+Unsubscribe from specific events:
 
 ```go
-e1 := &ready{}
-e2 := &ready{}
-bus.On("ready", e1, e2)
-bus.Off("ready", e1, e2)
-```
+handler := &ReadyHandler{}
+bus.On("ready", handler)
 
-You can unsubscribe all events for example:
+// Unsubscribe from a specific event
+bus.Off("ready", handler)
 
-```go
-bus.On("ready", &ready{}, &ready{})
+// Unsubscribe from all events under a topic
 bus.Off("ready")
 ```
 
-You can unsubscribe all topics for example:
+### Unsubscribing with Callback - OffCb(topic string, cb OffCallback, es ...Event[T]) *Bus[T]
 
 ```go
-bus.On("ready", &ready{}, &ready{})
-bus.On("run", &run{})
+handler := &ReadyHandler{}
+bus.On("ready", handler)
+
+// Unsubscribe and get results
+bus.OffCb("ready", func(count int, exists bool) {
+    fmt.Printf("Removed %d event handlers, topic exists: %v\n", count, exists)
+}, handler)
+```
+
+### Triggering Events - Trigger(topic string, msg ...T) *Bus[T]
+
+Send messages to a specific topic:
+
+```go
+// Send a single message
+bus.Trigger("message", "Hello")
+
+// Send multiple messages
+bus.Trigger("message", "Hello", "World", "!")
+```
+
+### Triggering All Events - TriggerAll(msg ...T) *Bus[T]
+
+Send messages to all topics:
+
+```go
+// Send a message to all topics
+bus.TriggerAll("Broadcast message")
+```
+
+### Global Events - Using the ALL Constant
+
+Subscribe to events for all topics:
+
+```go
+// Subscribe to all topics
+bus.On(eventbus.ALL, &GlobalHandler{})
+```
+
+### Querying Statistics
+
+```go
+// Get the number of event handlers for a specific topic
+count := bus.Count("message")
+fmt.Printf("Topic 'message' has %d handlers\n", count)
+
+// Get the total number of events
+total := bus.Total()
+fmt.Printf("Event bus has %d events in total\n", total)
+```
+
+### Clearing All Events - Clean() *Bus[T]
+
+```go
+// Clear all event subscriptions
 bus.Clean()
 ```
 
-### Trigger(topic string, msg ...any)
+## Advanced Examples
 
-Dispatch events
-
-```go
-bus.Trigger("ready")
-```
-
-You can also dispatch multiple events for example:
+### Custom Event Handler
 
 ```go
-bus.Trigger("ready", "1", "2")
+type LogEventHandler struct {
+    logger *log.Logger
+    level  string
+}
+
+func (h *LogEventHandler) Dispatch(topic string, messages []string) {
+    for _, msg := range messages {
+        h.logger.Printf("[%s] %s: %s", h.level, topic, msg)
+    }
+}
+
+// Create and subscribe
+logger := log.New(os.Stdout, "", log.LstdFlags)
+bus.On("error", &LogEventHandler{logger, "ERROR"})
+bus.On("info", &LogEventHandler{logger, "INFO"})
+
+// Trigger log events
+bus.Trigger("error", "System exception")
+bus.Trigger("info", "User logged in successfully")
 ```
 
-You can also dispatch all events for example:
+## Performance
 
-```go
-bus.Trigger(ALL, "1")
+`go-eventbus` is optimized for high-concurrency scenarios. Here are some benchmark results:
+
 ```
+BenchmarkOnTrigger-8                    3000000               399 ns/op              54 B/op          1 allocs/op
+BenchmarkConcurrentSubscribeAndTrigger-8  100000             17890 ns/op            2156 B/op         21 allocs/op
+BenchmarkSubscribeUnsubscribe-8          1000000              1035 ns/op             168 B/op          2 allocs/op
+BenchmarkHighConcurrentReadWrite-8         50000             30120 ns/op            3012 B/op         30 allocs/op
+```
+
+Run the benchmarks:
+
+```bash
+go test -bench=. -benchmem
+```
+
+## Concurrency Safety
+
+`go-eventbus` uses thread-safe data structures internally and supports high-concurrency read/write operations without additional synchronization measures.
+
+## Contributing
+
+Issues and PRs welcome!
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+## Other Languages
+
+- [中文文档](README-zh.md)
