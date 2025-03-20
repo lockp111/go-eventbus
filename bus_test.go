@@ -216,7 +216,7 @@ func TestTriggerAll(t *testing.T) {
 	o.On(ALL, fnAll)
 
 	// 触发所有事件
-	o.TriggerAll("test-all")
+	o.Broadcast("test-all")
 
 	// 检查是否所有事件都被触发
 	if n1 != 1 {
@@ -461,7 +461,7 @@ func TestDispatchEdgeCases(t *testing.T) {
 	// 测试空主题场景
 	emptyBus := New[string]()
 	emptyBus.Trigger("non-existent")
-	emptyBus.TriggerAll()
+	emptyBus.Broadcast()
 
 	// 测试ALL主题的特殊处理
 	allBus := New[string]()
@@ -477,7 +477,7 @@ func TestDispatchEdgeCases(t *testing.T) {
 	}
 
 	// 测试多个事件同时被触发
-	mixedBus := New[string]()
+	mixedBus := New[string]().AllowAsterisk()
 	topicCounter, allTopicCounter := 0, 0
 	topicHandler := &StringEventHandler{&topicCounter, ""}
 	allTopicHandler := &StringEventHandler{&allTopicCounter, ""}
@@ -587,14 +587,14 @@ func TestComplexDispatchScenarios(t *testing.T) {
 	bus.On("topic2", h2)
 	bus.Once("topic3", h3) // 使用Once来测试自动移除功能
 
-	bus.TriggerAll("data")
+	bus.Broadcast("data")
 
 	if n1 != 1 || n2 != 1 || n3 != 1 {
 		t.Errorf("TriggerAll后计数器错误: n1=%d, n2=%d, n3=%d", n1, n2, n3)
 	}
 
 	// 再次触发，检查Once是否被正确移除
-	bus.TriggerAll("data again")
+	bus.Broadcast("data again")
 
 	if n1 != 2 || n2 != 2 || n3 != 1 {
 		t.Errorf("第二次TriggerAll后计数器错误: n1=%d, n2=%d, n3=%d", n1, n2, n3)

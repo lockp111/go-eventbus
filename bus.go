@@ -11,7 +11,8 @@ type OffCallback func(count int, exists bool)
 
 // Bus struct
 type Bus[T any] struct {
-	events cmap.ConcurrentMap[string, []*event[T]]
+	allowAsterisk bool
+	events        cmap.ConcurrentMap[string, []*event[T]]
 }
 
 // New - return a new Bus object
@@ -19,6 +20,12 @@ func New[T any]() *Bus[T] {
 	return &Bus[T]{
 		events: cmap.New[[]*event[T]](),
 	}
+}
+
+// AllowAsterisk - allow asterisk topic
+func (b *Bus[T]) AllowAsterisk() *Bus[T] {
+	b.allowAsterisk = true
+	return b
 }
 
 // On - register topic event and return error
@@ -57,9 +64,9 @@ func (b *Bus[T]) Trigger(topic string, msg ...T) *Bus[T] {
 	return b
 }
 
-// TriggerAll - dispatch all topics
-func (b *Bus[T]) TriggerAll(msg ...T) *Bus[T] {
-	b.dispatchAll(msg)
+// Broadcast - broadcast all topics
+func (b *Bus[T]) Broadcast(msg ...T) *Bus[T] {
+	b.broadcast(msg)
 	return b
 }
 
@@ -131,7 +138,7 @@ func (b *Bus[T]) dispatch(topic string, data []T) {
 		dispatch(topic, events, removes, data)
 	})
 
-	if topic != ALL {
+	if b.allowAsterisk && topic != ALL {
 		b.events.GetCb(ALL, func(events []*event[T], exists bool) {
 			if !exists {
 				return
@@ -145,7 +152,7 @@ func (b *Bus[T]) dispatch(topic string, data []T) {
 	}
 }
 
-func (b *Bus[T]) dispatchAll(data []T) {
+func (b *Bus[T]) broadcast(data []T) {
 	var (
 		removes = make(map[string][]Event[T])
 	)
