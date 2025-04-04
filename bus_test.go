@@ -341,16 +341,16 @@ func TestCount(t *testing.T) {
 	o.On("foo", fn).On("foo", fn).On("bar", fn)
 
 	// 检查计数
-	if o.Count("foo") != 2 {
-		t.Errorf("主题'foo'的计数为 %d，期望为 %d", o.Count("foo"), 2)
+	if o.EventCount("foo") != 2 {
+		t.Errorf("主题'foo'的计数为 %d，期望为 %d", o.EventCount("foo"), 2)
 	}
 
-	if o.Count("bar") != 1 {
-		t.Errorf("主题'bar'的计数为 %d，期望为 %d", o.Count("bar"), 1)
+	if o.EventCount("bar") != 1 {
+		t.Errorf("主题'bar'的计数为 %d，期望为 %d", o.EventCount("bar"), 1)
 	}
 
-	if o.Count("non-existent") != 0 {
-		t.Errorf("不存在主题的计数为 %d，期望为 %d", o.Count("non-existent"), 0)
+	if o.EventCount("non-existent") != 0 {
+		t.Errorf("不存在主题的计数为 %d，期望为 %d", o.EventCount("non-existent"), 0)
 	}
 }
 
@@ -361,32 +361,32 @@ func TestTotal(t *testing.T) {
 
 	fn := &StringEventHandler{&n, ""}
 	// 初始应该为0
-	if o.Total() != 0 {
-		t.Errorf("初始总计数为 %d，期望为 %d", o.Total(), 0)
+	if o.TotalEvents() != 0 {
+		t.Errorf("初始总计数为 %d，期望为 %d", o.TotalEvents(), 0)
 	}
 
 	// 添加事件
 	o.On("foo", fn).On("bar", fn).On("baz", fn)
 
 	// 检查总计数
-	if o.Total() != 3 {
-		t.Errorf("总计数为 %d，期望为 %d", o.Total(), 3)
+	if o.TotalEvents() != 3 {
+		t.Errorf("总计数为 %d，期望为 %d", o.TotalEvents(), 3)
 	}
 
 	// 移除一个事件
 	o.Off("foo", fn)
 
 	// 再次检查计数
-	if o.Total() != 2 {
-		t.Errorf("移除后总计数为 %d，期望为 %d", o.Total(), 2)
+	if o.TotalEvents() != 2 {
+		t.Errorf("移除后总计数为 %d，期望为 %d", o.TotalEvents(), 2)
 	}
 
 	// 清除所有事件
 	o.Clean()
 
 	// 检查清除后的计数
-	if o.Total() != 0 {
-		t.Errorf("清除后总计数为 %d，期望为 %d", o.Total(), 0)
+	if o.TotalEvents() != 0 {
+		t.Errorf("清除后总计数为 %d，期望为 %d", o.TotalEvents(), 0)
 	}
 }
 
@@ -432,14 +432,14 @@ func TestChaining(t *testing.T) {
 		Once("event3", handler3)
 
 	// 验证所有事件都被正确注册
-	if bus.Count("event1") != 1 {
-		t.Errorf("event1计数错误: %d", bus.Count("event1"))
+	if bus.EventCount("event1") != 1 {
+		t.Errorf("event1计数错误: %d", bus.EventCount("event1"))
 	}
-	if bus.Count("event2") != 1 {
-		t.Errorf("event2计数错误: %d", bus.Count("event2"))
+	if bus.EventCount("event2") != 1 {
+		t.Errorf("event2计数错误: %d", bus.EventCount("event2"))
 	}
-	if bus.Count("event3") != 1 {
-		t.Errorf("event3计数错误: %d", bus.Count("event3"))
+	if bus.EventCount("event3") != 1 {
+		t.Errorf("event3计数错误: %d", bus.EventCount("event3"))
 	}
 
 	// 测试链式触发
@@ -470,14 +470,14 @@ func TestChaining(t *testing.T) {
 	}
 
 	// 验证链式清理与验证
-	if bus.Clean().Total() != 0 {
-		t.Errorf("清理后总数不为0: %d", bus.Total())
+	if bus.Clean().TotalEvents() != 0 {
+		t.Errorf("清理后总数不为0: %d", bus.TotalEvents())
 	}
 
 	// 测试链式取消订阅
 	bus.On("test", handler1).On("test", handler2)
-	if bus.Off("test", handler1).Count("test") != 1 {
-		t.Errorf("取消订阅后计数错误: %d", bus.Count("test"))
+	if bus.Off("test", handler1).EventCount("test") != 1 {
+		t.Errorf("取消订阅后计数错误: %d", bus.EventCount("test"))
 	}
 }
 
@@ -606,8 +606,8 @@ func TestRemoveEventsCbEdgeCases(t *testing.T) {
 	}
 
 	// 验证实际移除后的计数
-	if bus.Count("topic") != 1 {
-		t.Errorf("移除一个处理器后计数为 %d，期望为 1", bus.Count("topic"))
+	if bus.EventCount("topic") != 1 {
+		t.Errorf("移除一个处理器后计数为 %d，期望为 1", bus.EventCount("topic"))
 	}
 
 	// 额外测试：移除不存在的处理器
@@ -668,8 +668,8 @@ func TestComplexDispatchScenarios(t *testing.T) {
 	}
 
 	// 检查所有事件的计数
-	if bus.Count("topic3") != 0 {
-		t.Errorf("Once事件应被移除，但计数为 %d", bus.Count("topic3"))
+	if bus.EventCount("topic3") != 0 {
+		t.Errorf("Once事件应被移除，但计数为 %d", bus.EventCount("topic3"))
 	}
 }
 
@@ -704,7 +704,7 @@ func TestRemoveNonExistentEventWithHandlers(t *testing.T) {
 	emptyBus.Off("empty-handlers", emptyHandler)
 
 	// 此时应该是空列表
-	if emptyBus.Count("empty-handlers") != 0 {
+	if emptyBus.EventCount("empty-handlers") != 0 {
 		t.Error("应该是空列表，但仍有处理器")
 	}
 
@@ -712,7 +712,7 @@ func TestRemoveNonExistentEventWithHandlers(t *testing.T) {
 	emptyBus.Off("empty-handlers", handler)
 
 	// 验证事件列表
-	if emptyBus.Count("empty-handlers") != 0 {
+	if emptyBus.EventCount("empty-handlers") != 0 {
 		t.Error("空处理器列表的主题应该被移除")
 	}
 }
@@ -797,5 +797,53 @@ func TestDispatchEdgeCases_Comprehensive(t *testing.T) {
 
 	if allNoAsteriskCounter != 1 {
 		t.Errorf("直接触发ALL主题应使计数为1，但得到%d", allNoAsteriskCounter)
+	}
+}
+
+// TestTopicCount 测试主题计数方法
+func TestTopicCount(t *testing.T) {
+	bus := New[string]()
+	n := 0
+	handler := &StringEventHandler{&n, ""}
+
+	// 初始应该为0
+	if bus.TopicCount() != 0 {
+		t.Errorf("初始主题数为 %d，期望为 %d", bus.TopicCount(), 0)
+	}
+
+	// 添加一个主题
+	bus.On("topic1", handler)
+
+	if bus.TopicCount() != 1 {
+		t.Errorf("添加一个主题后，主题数为 %d，期望为 %d", bus.TopicCount(), 1)
+	}
+
+	// 添加第二个主题
+	bus.On("topic2", handler)
+
+	if bus.TopicCount() != 2 {
+		t.Errorf("添加两个主题后，主题数为 %d，期望为 %d", bus.TopicCount(), 2)
+	}
+
+	// 添加到已存在的主题不应增加主题计数
+	bus.On("topic1", handler)
+
+	if bus.TopicCount() != 2 {
+		t.Errorf("添加到已存在主题后，主题数为 %d，期望为 %d", bus.TopicCount(), 2)
+	}
+
+	// 移除主题
+	bus.Off("topic1", handler)
+
+	// 如果移除了所有该主题的处理器，主题应该被删除
+	if bus.TopicCount() != 1 {
+		t.Errorf("移除一个主题后，主题数为 %d，期望为 %d", bus.TopicCount(), 1)
+	}
+
+	// 清空所有主题
+	bus.Clean()
+
+	if bus.TopicCount() != 0 {
+		t.Errorf("清空后，主题数为 %d，期望为 %d", bus.TopicCount(), 0)
 	}
 }

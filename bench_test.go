@@ -204,7 +204,7 @@ func BenchmarkHighConcurrentReadWrite(b *testing.B) {
 			b.ReportMetric(float64(atomic.LoadInt64(&counter)), "dispatches")
 
 			// 报告事件总数
-			b.ReportMetric(float64(bus.Total()), "total_events")
+			b.ReportMetric(float64(bus.TotalEvents()), "total_events")
 
 			// 获取内存使用情况
 			var m runtime.MemStats

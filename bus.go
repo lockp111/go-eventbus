@@ -69,8 +69,13 @@ func (b *Bus[T]) Broadcast(msg ...T) *Bus[T] {
 	return b
 }
 
-// Count - topic count events
-func (b *Bus[T]) Count(topic string) int {
+// TopicCount - return the number of topics
+func (b *Bus[T]) TopicCount() int {
+	return b.topics.Count()
+}
+
+// EventCount - return the number of events for a topic
+func (b *Bus[T]) EventCount(topic string) int {
 	ob, ok := b.topics.Get(topic)
 	if !ok {
 		return 0
@@ -78,8 +83,8 @@ func (b *Bus[T]) Count(topic string) int {
 	return ob.Count()
 }
 
-// Total - total events
-func (b *Bus[T]) Total() int {
+// TotalEvents - return the total number of events
+func (b *Bus[T]) TotalEvents() int {
 	total := 0
 	b.topics.IterCb(func(_ string, ob *Observer[T]) {
 		total += ob.Count()
