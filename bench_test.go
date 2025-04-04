@@ -40,6 +40,11 @@ func (e *benchmarkEvent) Dispatch(topic string, _ []string) {
 	atomic.AddInt64(e.counter, 1)
 }
 
+// 添加OnStop方法以实现Event接口
+func (e *benchmarkEvent) OnStop(topic string) {
+	// 基准测试处理器不需要特殊处理
+}
+
 // 基准测试：并发订阅和触发事件
 func BenchmarkConcurrentSubscribeAndTrigger(b *testing.B) {
 	bus := New[string]()

@@ -2,23 +2,23 @@ package eventbus
 
 import (
 	"reflect"
-	"sync/atomic"
 
 	"github.com/lockp111/go-cmap"
 )
 
-type OffCallback func(count int, exists bool)
+// ALL - The key use to listen all the topics
+const ALL = "*"
 
 // Bus struct
 type Bus[T any] struct {
 	allowAsterisk bool
-	events        cmap.ConcurrentMap[string, []*event[T]]
+	topics        cmap.ConcurrentMap[string, *Observer[T]]
 }
 
 // New - return a new Bus object
 func New[T any]() *Bus[T] {
 	return &Bus[T]{
-		events: cmap.New[[]*event[T]](),
+		topics: cmap.New[*Observer[T]](),
 	}
 }
 
@@ -46,15 +46,14 @@ func (b *Bus[T]) Off(topic string, es ...Event[T]) *Bus[T] {
 	return b
 }
 
-// OffCb - remove topic event and callback
-func (b *Bus[T]) OffCb(topic string, cb OffCallback, es ...Event[T]) *Bus[T] {
-	b.removeEventsCb(topic, es, cb)
-	return b
-}
-
 // Clean - clear all events
 func (b *Bus[T]) Clean() *Bus[T] {
-	b.events = cmap.New[[]*event[T]]()
+	go func(oldTopics cmap.ConcurrentMap[string, *Observer[T]]) {
+		oldTopics.IterCb(func(_ string, ob *Observer[T]) {
+			ob.Clear()
+		})
+	}(b.topics)
+	b.topics = cmap.New[*Observer[T]]()
 	return b
 }
 
@@ -72,109 +71,87 @@ func (b *Bus[T]) Broadcast(msg ...T) *Bus[T] {
 
 // Count - topic count events
 func (b *Bus[T]) Count(topic string) int {
-	es, _ := b.events.Get(topic)
-	return len(es)
+	ob, ok := b.topics.Get(topic)
+	if !ok {
+		return 0
+	}
+	return ob.Count()
 }
 
 // Total - total events
 func (b *Bus[T]) Total() int {
-	return b.events.Count()
+	total := 0
+	b.topics.IterCb(func(_ string, ob *Observer[T]) {
+		total += ob.Count()
+	})
+	return total
+}
+
+// Get - get topic observer
+func (b *Bus[T]) Get(topic string) *Observer[T] {
+	ob, ok := b.topics.Get(topic)
+	if !ok {
+		return nil
+	}
+	return ob
 }
 
 func (b *Bus[T]) addEvent(topic string, isUnique bool, e Event[T]) {
-	b.events.Upsert(topic, func(oldValue []*event[T], _ bool) []*event[T] {
-		return append(oldValue, newEvent(e, topic, isUnique))
+	b.topics.Upsert(topic, func(oldValue *Observer[T], exist bool) *Observer[T] {
+		if !exist {
+			oldValue = &Observer[T]{
+				topic:  topic,
+				events: make([]*event[T], 0),
+			}
+		}
+
+		oldValue.addEvent(e, isUnique)
+		return oldValue
 	})
 }
 
 func (b *Bus[T]) removeEvents(topic string, es []Event[T]) {
-	b.removeEventsCb(topic, es)
-}
-
-func (b *Bus[T]) removeEventsCb(topic string, es []Event[T], cb ...OffCallback) {
-	if len(es) == 0 {
-		b.events.RemoveCb(topic, func(_ []*event[T], exists bool) bool {
-			for _, callback := range cb {
-				callback(0, exists)
-			}
-			return true
-		})
-		return
+	var (
+		removed []*event[T]
+		vs      = make([]reflect.Value, 0, len(es))
+	)
+	for _, e := range es {
+		vs = append(vs, reflect.ValueOf(e))
 	}
 
-	b.events.Upsert(topic, func(oldValue []*event[T], exist bool) []*event[T] {
-		if !exist || len(oldValue) == 0 {
-			return []*event[T]{}
+	b.topics.RemoveCb(topic, func(ob *Observer[T], exists bool) bool {
+		if !exists {
+			return true
 		}
-		for _, e := range es {
-			tag := reflect.ValueOf(e)
-			for i, v := range oldValue {
-				if v.tag == tag {
-					oldValue = append(oldValue[:i], oldValue[i+1:]...)
-				}
-			}
-		}
-		return oldValue
+		removed = ob.removeEvents(vs)
+		return ob.Count() == 0
 	})
 
-	b.events.RemoveCb(topic, func(value []*event[T], exists bool) bool {
-		count := len(value)
-		for _, callback := range cb {
-			callback(count, exists)
-		}
-		return count == 0
-	})
+	if len(removed) > 0 {
+		go onStop(topic, removed)
+	}
 }
 
 func (b *Bus[T]) dispatch(topic string, data []T) {
-	var (
-		removes = make(map[string][]Event[T])
-	)
-
-	b.events.GetCb(topic, func(events []*event[T], exists bool) {
+	b.topics.GetCb(topic, func(ob *Observer[T], exists bool) {
 		if !exists {
 			return
 		}
-		dispatch(topic, events, removes, data)
+		ob.Distpatch(data)
 	})
 
 	if b.allowAsterisk && topic != ALL {
-		b.events.GetCb(ALL, func(events []*event[T], exists bool) {
+		b.topics.GetCb(ALL, func(ob *Observer[T], exists bool) {
 			if !exists {
 				return
 			}
-			dispatch(topic, events, removes, data)
+			ob.Distpatch(data)
 		})
-	}
-
-	for k, v := range removes {
-		b.removeEvents(k, v)
 	}
 }
 
 func (b *Bus[T]) broadcast(data []T) {
-	var (
-		removes = make(map[string][]Event[T])
-	)
-
-	b.events.IterCb(func(topic string, events []*event[T]) {
-		dispatch(topic, events, removes, data)
+	b.topics.IterCb(func(_ string, ob *Observer[T]) {
+		ob.Distpatch(data)
 	})
-
-	for k, v := range removes {
-		b.removeEvents(k, v)
-	}
-}
-
-func dispatch[T any](topic string, events []*event[T], removes map[string][]Event[T], data []T) {
-	for _, e := range events {
-		if !e.isUnique {
-			e.Dispatch(topic, data)
-			continue
-		}
-		if atomic.CompareAndSwapUint32(&e.hasCalled, 0, 1) {
-			e.Dispatch(topic, data)
-			removes[e.topic] = append(removes[e.topic], e.Event)
-		}
-	}
 }
