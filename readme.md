@@ -11,6 +11,9 @@ A high-performance event bus model for Go, supporting generics, thread-safe, and
 - **Thread Safety**: Support for high-concurrency read/write operations
 - **Chainable API**: Convenient API design with chainable method calls
 - **Flexible Subscription**: Support for one-time events and persistent subscriptions
+- **Global Events**: Support for subscribing to all topics using the ALL constant
+- **Callback Support**: Rich callback mechanisms for event unsubscription
+- **Statistics**: Built-in support for event counting and topic statistics
 
 ## Installation
 
@@ -45,6 +48,11 @@ func (h *MessageHandler) Dispatch(topic string, messages []string) {
     fmt.Printf("Received message for topic %s: %v\n", topic, messages)
 }
 
+// Implement the OnStop method
+func (h *MessageHandler) OnStop(topic string) {
+    fmt.Printf("Handler stopped for topic %s\n", topic)
+}
+
 // Subscribe to an event
 bus.On("message", &MessageHandler{})
 
@@ -63,6 +71,10 @@ func (e *ReadyHandler) Dispatch(topic string, data []string) {
     fmt.Printf("Topic %s is ready, data: %v\n", topic, data)
 }
 
+func (e *ReadyHandler) OnStop(topic string) {
+    fmt.Printf("ReadyHandler stopped for topic %s\n", topic)
+}
+
 // Subscribe to a single event
 bus.On("ready", &ReadyHandler{})
 
@@ -79,6 +91,10 @@ type InitHandler struct{}
 
 func (e *InitHandler) Dispatch(topic string, data []string) {
     fmt.Println("System initialization completed")
+}
+
+func (e *InitHandler) OnStop(topic string) {
+    fmt.Printf("InitHandler stopped for topic %s\n", topic)
 }
 
 // Subscribe to a one-time event
@@ -124,13 +140,13 @@ bus.Trigger("message", "Hello")
 bus.Trigger("message", "Hello", "World", "!")
 ```
 
-### Triggering All Events - TriggerAll(msg ...T) *Bus[T]
+### Broadcasting Events - Broadcast(msg ...T) *Bus[T]
 
 Send messages to all topics:
 
 ```go
 // Send a message to all topics
-bus.TriggerAll("Broadcast message")
+bus.Broadcast("Broadcast message")
 ```
 
 ### Global Events - Using the ALL Constant
@@ -140,18 +156,35 @@ Subscribe to events for all topics:
 ```go
 // Subscribe to all topics
 bus.On(eventbus.ALL, &GlobalHandler{})
+
+// Allow asterisk topic for global event handling
+bus.AllowAsterisk()
 ```
 
 ### Querying Statistics
 
 ```go
 // Get the number of event handlers for a specific topic
-count := bus.Count("message")
+count := bus.EventCount("message")
 fmt.Printf("Topic 'message' has %d handlers\n", count)
 
 // Get the total number of events
-total := bus.Total()
+total := bus.TotalEvents()
 fmt.Printf("Event bus has %d events in total\n", total)
+
+// Get the number of topics
+topicCount := bus.TopicCount()
+fmt.Printf("Event bus has %d topics\n", topicCount)
+```
+
+### Getting Topic Information
+
+```go
+// Get topic information
+topic := bus.Get("message")
+if topic != nil {
+    fmt.Printf("Topic has %d handlers\n", topic.Count())
+}
 ```
 
 ### Clearing All Events - Clean() *Bus[T]
@@ -163,28 +196,60 @@ bus.Clean()
 
 ## Advanced Examples
 
-### Custom Event Handler
+### Custom Event Handler with State
 
 ```go
 type LogEventHandler struct {
     logger *log.Logger
     level  string
+    counter int
 }
 
 func (h *LogEventHandler) Dispatch(topic string, messages []string) {
     for _, msg := range messages {
-        h.logger.Printf("[%s] %s: %s", h.level, topic, msg)
+        h.counter++
+        h.logger.Printf("[%s] %s: %s (count: %d)", h.level, topic, msg, h.counter)
     }
+}
+
+func (h *LogEventHandler) OnStop(topic string) {
+    h.logger.Printf("[%s] Handler stopped for topic %s\n", h.level, topic)
 }
 
 // Create and subscribe
 logger := log.New(os.Stdout, "", log.LstdFlags)
-bus.On("error", &LogEventHandler{logger, "ERROR"})
-bus.On("info", &LogEventHandler{logger, "INFO"})
+bus.On("error", &LogEventHandler{logger, "ERROR", 0})
+bus.On("info", &LogEventHandler{logger, "INFO", 0})
 
 // Trigger log events
 bus.Trigger("error", "System exception")
 bus.Trigger("info", "User logged in successfully")
+```
+
+### Concurrent Event Handling
+
+```go
+type AtomicHandler struct {
+    counter *int32
+}
+
+func (h *AtomicHandler) Dispatch(topic string, data []string) {
+    atomic.AddInt32(h.counter, 1)
+}
+
+func (h *AtomicHandler) OnStop(topic string) {
+    // Handle cleanup if needed
+}
+
+// Create handler with atomic counter
+var counter int32
+handler := &AtomicHandler{&counter}
+
+// Subscribe and trigger concurrently
+bus.On("concurrent", handler)
+for i := 0; i < 100; i++ {
+    go bus.Trigger("concurrent", "data")
+}
 ```
 
 ## Performance

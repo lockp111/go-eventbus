@@ -12,13 +12,13 @@ const ALL = "*"
 // Bus struct
 type Bus[T any] struct {
 	allowAsterisk bool
-	topics        cmap.ConcurrentMap[string, *Observer[T]]
+	topics        cmap.ConcurrentMap[string, *Topic[T]]
 }
 
-// New - return a new Bus object
+// New - return a new Bus topicHandlerject
 func New[T any]() *Bus[T] {
 	return &Bus[T]{
-		topics: cmap.New[*Observer[T]](),
+		topics: cmap.New[*Topic[T]](),
 	}
 }
 
@@ -48,12 +48,12 @@ func (b *Bus[T]) Off(topic string, es ...Event[T]) *Bus[T] {
 
 // Clean - clear all events
 func (b *Bus[T]) Clean() *Bus[T] {
-	go func(oldTopics cmap.ConcurrentMap[string, *Observer[T]]) {
-		oldTopics.IterCb(func(_ string, ob *Observer[T]) {
-			ob.Clear()
+	go func(oldTopics cmap.ConcurrentMap[string, *Topic[T]]) {
+		oldTopics.IterCb(func(_ string, topicHandler *Topic[T]) {
+			topicHandler.Clear()
 		})
 	}(b.topics)
-	b.topics = cmap.New[*Observer[T]]()
+	b.topics = cmap.New[*Topic[T]]()
 	return b
 }
 
@@ -76,36 +76,36 @@ func (b *Bus[T]) TopicCount() int {
 
 // EventCount - return the number of events for a topic
 func (b *Bus[T]) EventCount(topic string) int {
-	ob, ok := b.topics.Get(topic)
+	topicHandler, ok := b.topics.Get(topic)
 	if !ok {
 		return 0
 	}
-	return ob.Count()
+	return topicHandler.Count()
 }
 
 // TotalEvents - return the total number of events
 func (b *Bus[T]) TotalEvents() int {
 	total := 0
-	b.topics.IterCb(func(_ string, ob *Observer[T]) {
-		total += ob.Count()
+	b.topics.IterCb(func(_ string, topicHandler *Topic[T]) {
+		total += topicHandler.Count()
 	})
 	return total
 }
 
-// Get - get topic observer
-func (b *Bus[T]) Get(topic string) *Observer[T] {
-	ob, ok := b.topics.Get(topic)
+// Get - get topic handler
+func (b *Bus[T]) Get(topic string) *Topic[T] {
+	topicHandler, ok := b.topics.Get(topic)
 	if !ok {
 		return nil
 	}
-	return ob
+	return topicHandler
 }
 
 func (b *Bus[T]) addEvent(topic string, isUnique bool, e Event[T]) {
-	b.topics.Upsert(topic, func(oldValue *Observer[T], exist bool) *Observer[T] {
+	b.topics.Upsert(topic, func(oldValue *Topic[T], exist bool) *Topic[T] {
 		if !exist {
-			oldValue = &Observer[T]{
-				topic:  topic,
+			oldValue = &Topic[T]{
+				name:   topic,
 				events: make([]*event[T], 0),
 			}
 		}
@@ -124,12 +124,12 @@ func (b *Bus[T]) removeEvents(topic string, es []Event[T]) {
 		vs = append(vs, reflect.ValueOf(e))
 	}
 
-	b.topics.RemoveCb(topic, func(ob *Observer[T], exists bool) bool {
+	b.topics.RemoveCb(topic, func(topicHandler *Topic[T], exists bool) bool {
 		if !exists {
 			return true
 		}
-		removed = ob.removeEvents(vs)
-		return ob.Count() == 0
+		removed = topicHandler.removeEvents(vs)
+		return topicHandler.Count() == 0
 	})
 
 	if len(removed) > 0 {
@@ -138,25 +138,25 @@ func (b *Bus[T]) removeEvents(topic string, es []Event[T]) {
 }
 
 func (b *Bus[T]) dispatch(topic string, data []T) {
-	b.topics.GetCb(topic, func(ob *Observer[T], exists bool) {
+	b.topics.GetCb(topic, func(topicHandler *Topic[T], exists bool) {
 		if !exists {
 			return
 		}
-		ob.Distpatch(data)
+		topicHandler.Dispatch(data)
 	})
 
 	if b.allowAsterisk && topic != ALL {
-		b.topics.GetCb(ALL, func(ob *Observer[T], exists bool) {
+		b.topics.GetCb(ALL, func(topicHandler *Topic[T], exists bool) {
 			if !exists {
 				return
 			}
-			ob.Distpatch(data)
+			topicHandler.Dispatch(data)
 		})
 	}
 }
 
 func (b *Bus[T]) broadcast(data []T) {
-	b.topics.IterCb(func(_ string, ob *Observer[T]) {
-		ob.Distpatch(data)
+	b.topics.IterCb(func(_ string, topicHandler *Topic[T]) {
+		topicHandler.Dispatch(data)
 	})
 }

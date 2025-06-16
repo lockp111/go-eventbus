@@ -724,25 +724,25 @@ func TestBusGet(t *testing.T) {
 	handler := &StringEventHandler{&n, ""}
 
 	// 测试不存在的主题
-	observer := bus.Get("non-existent")
-	if observer != nil {
+	topic := bus.Get("non-existent")
+	if topic != nil {
 		t.Error("Get应该对不存在的主题返回nil")
 	}
 
 	// 测试存在的主题
 	bus.On("test-topic", handler)
-	observer = bus.Get("test-topic")
-	if observer == nil {
-		t.Error("Get应该对存在的主题返回Observer")
+	topic = bus.Get("test-topic")
+	if topic == nil {
+		t.Error("Get应该对存在的主题返回Topic")
 	}
 
-	// 验证返回的Observer
-	if observer.Count() != 1 {
-		t.Errorf("返回的Observer计数应为1，但得到%d", observer.Count())
+	// 验证返回的Topic
+	if topic.Count() != 1 {
+		t.Errorf("返回的Topic计数应为1，但得到%d", topic.Count())
 	}
 
-	if observer.topic != "test-topic" {
-		t.Errorf("返回的Observer主题应为'test-topic'，但得到%s", observer.topic)
+	if topic.name != "test-topic" {
+		t.Errorf("返回的Topic主题应为'test-topic'，但得到%s", topic.name)
 	}
 }
 

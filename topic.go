@@ -6,69 +6,69 @@ import (
 	"sync/atomic"
 )
 
-// Observer
-type Observer[T any] struct {
-	topic  string
+// Topic represents a topic and its associated event handlers
+type Topic[T any] struct {
+	name   string
 	events []*event[T]
 }
 
-func (o *Observer[T]) Distpatch(data []T) {
+func (t *Topic[T]) Dispatch(data []T) {
 	var (
 		removed []*event[T]
-		removes = o.dispatch(data)
+		removes = t.dispatch(data)
 	)
 
 	if len(removes) > 0 {
-		removed = o.removeEvents(removes)
+		removed = t.removeEvents(removes)
 	}
 
 	if len(removed) > 0 {
-		go onStop(o.topic, removed)
+		go onStop(t.name, removed)
 	}
 }
 
-func (o *Observer[T]) Count() int {
-	return len(o.events)
+func (t *Topic[T]) Count() int {
+	return len(t.events)
 }
 
-func (o *Observer[T]) Clear() {
-	removed := o.removeEvents(nil)
-	onStop(o.topic, removed)
+func (t *Topic[T]) Clear() {
+	removed := t.removeEvents(nil)
+	onStop(t.name, removed)
 }
 
-func (o *Observer[T]) addEvent(e Event[T], isUnique bool) {
-	o.events = append(o.events, newEvent(e, isUnique))
+func (t *Topic[T]) addEvent(e Event[T], isUnique bool) {
+	t.events = append(t.events, newEvent(e, isUnique))
 }
 
-func (o *Observer[T]) removeEvents(es []reflect.Value) []*event[T] {
+func (t *Topic[T]) removeEvents(es []reflect.Value) []*event[T] {
 	if len(es) == 0 {
-		removed := o.events
-		o.events = nil
+		removed := t.events
+		t.events = nil
 		return removed
 	}
 
-	newEvents := make([]*event[T], 0, len(o.events))
+	newEvents := make([]*event[T], 0, len(t.events))
 	removed := make([]*event[T], 0, len(es))
-	for _, e := range o.events {
+	for _, e := range t.events {
 		if slices.Contains(es, e.tag) {
 			removed = append(removed, e)
 			continue
 		}
 		newEvents = append(newEvents, e)
 	}
-	o.events = newEvents
+	t.events = newEvents
 	return removed
 }
 
-func (o *Observer[T]) dispatch(data []T) []reflect.Value {
+func (t *Topic[T]) dispatch(data []T) []reflect.Value {
 	var removes = make([]reflect.Value, 0)
-	for _, e := range o.events {
+	for _, e := range t.events {
 		if !e.isUnique {
-			e.Dispatch(o.topic, data)
+			e.Dispatch(t.name, data)
 			continue
 		}
 		if atomic.CompareAndSwapUint32(&e.hasCalled, 0, 1) {
-			e.Dispatch(o.topic, data)
+			e.Dispatch(t.name, data)
 			removes = append(removes, e.tag)
 		}
 	}
