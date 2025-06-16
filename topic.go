@@ -12,7 +12,7 @@ type Topic[T any] struct {
 	events []*event[T]
 }
 
-func (t *Topic[T]) Dispatch(data []T) {
+func (t *Topic[T]) Dispatch(data ...T) {
 	var (
 		removed []*event[T]
 		removes = t.dispatch(data)

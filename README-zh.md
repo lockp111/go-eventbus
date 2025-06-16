@@ -12,7 +12,6 @@
 - **链式调用**：方便的API设计，支持链式调用
 - **灵活订阅**：支持一次性事件和持久订阅
 - **全局事件**：支持使用ALL常量订阅所有主题
-- **回调支持**：丰富的事件取消订阅回调机制
 - **统计功能**：内置事件计数和主题统计支持
 
 ## 安装
@@ -116,18 +115,6 @@ bus.Off("ready", handler)
 bus.Off("ready")
 ```
 
-### 带回调的取消订阅 - OffCb(topic string, cb OffCallback, es ...Event[T]) *Bus[T]
-
-```go
-handler := &ReadyHandler{}
-bus.On("ready", handler)
-
-// 取消订阅并获取结果
-bus.OffCb("ready", func(count int, exists bool) {
-    fmt.Printf("已移除 %d 个事件处理器，主题是否存在: %v\n", count, exists)
-}, handler)
-```
-
 ### 触发事件 - Trigger(topic string, msg ...T) *Bus[T]
 
 向特定主题发送消息：
@@ -184,8 +171,32 @@ fmt.Printf("事件总线共有 %d 个主题\n", topicCount)
 topic := bus.Get("message")
 if topic != nil {
     fmt.Printf("主题有 %d 个处理器\n", topic.Count())
+    
+    // 直接向主题分发事件以提高性能
+    // 这样可以避免在总线中查找主题的开销
+    topic.Dispatch("直接消息")
 }
 ```
+
+### 性能优化
+
+对于高性能场景，你可以使用 `Get` 方法缓存主题引用并直接分发事件：
+
+```go
+// 获取并缓存主题引用
+messageTopic := bus.Get("message")
+if messageTopic != nil {
+    // 直接分发，避免总线查找开销
+    for i := 0; i < 1000; i++ {
+        messageTopic.Dispatch(fmt.Sprintf("消息 %d", i))
+    }
+}
+```
+
+这种方法在以下场景特别有用：
+- 需要向同一主题分发大量事件
+- 想要最小化主题查找的开销
+- 在高并发环境中工作
 
 ### 清除所有事件 - Clean() *Bus[T]
 
@@ -257,10 +268,12 @@ for i := 0; i < 100; i++ {
 `go-eventbus` 针对高并发场景进行了优化。以下是一些基准测试结果：
 
 ```
-BenchmarkOnTrigger-8                    3000000               399 ns/op              54 B/op          1 allocs/op
-BenchmarkConcurrentSubscribeAndTrigger-8  100000             17890 ns/op            2156 B/op         21 allocs/op
-BenchmarkSubscribeUnsubscribe-8          1000000              1035 ns/op             168 B/op          2 allocs/op
-BenchmarkHighConcurrentReadWrite-8         50000             30120 ns/op            3012 B/op         30 allocs/op
+BenchmarkOnTrigger-14                           18754964                64.34 ns/op            0 B/op          0 allocs/op
+BenchmarkConcurrentSubscribeAndTrigger-14       15510948                76.08 ns/op           37 B/op          2 allocs/op
+BenchmarkSubscribeUnsubscribe-14                 2837731               364.1 ns/op           224 B/op          9 allocs/op
+BenchmarkHighConcurrentReadWrite/Concurrency-100-14
+             1000000              2378 ns/op          40036115 dispatches    105.4 memory_MB
+BenchmarkGetAndTrigger-14                       98902462                16.00 ns/op           16 B/op          1 allocs/op
 ```
 
 运行基准测试：

@@ -142,7 +142,7 @@ func (b *Bus[T]) dispatch(topic string, data []T) {
 		if !exists {
 			return
 		}
-		topicHandler.Dispatch(data)
+		topicHandler.Dispatch(data...)
 	})
 
 	if b.allowAsterisk && topic != ALL {
@@ -150,13 +150,13 @@ func (b *Bus[T]) dispatch(topic string, data []T) {
 			if !exists {
 				return
 			}
-			topicHandler.Dispatch(data)
+			topicHandler.Dispatch(data...)
 		})
 	}
 }
 
 func (b *Bus[T]) broadcast(data []T) {
 	b.topics.IterCb(func(_ string, topicHandler *Topic[T]) {
-		topicHandler.Dispatch(data)
+		topicHandler.Dispatch(data...)
 	})
 }

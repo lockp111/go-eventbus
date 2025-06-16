@@ -213,3 +213,33 @@ func BenchmarkHighConcurrentReadWrite(b *testing.B) {
 		})
 	}
 }
+
+// 基准测试：使用Get获取单个Topic后触发事件的性能
+func BenchmarkGetAndTrigger(b *testing.B) {
+	bus := New[string]()
+	var counter int64
+
+	// 预热：订阅事件
+	handler := &benchmarkEvent{&counter}
+	bus.On("test-topic", handler)
+
+	// 获取主题引用
+	topic := bus.Get("test-topic")
+	if topic == nil {
+		b.Fatal("无法获取主题")
+	}
+
+	b.ResetTimer()
+
+	// 使用获取的主题直接触发事件
+	for i := 0; i < b.N; i++ {
+		topic.Dispatch("test message")
+	}
+
+	b.StopTimer()
+
+	// 验证事件处理次数
+	if atomic.LoadInt64(&counter) != int64(b.N) {
+		b.Errorf("事件处理次数错误: 期望 %d, 实际 %d", b.N, atomic.LoadInt64(&counter))
+	}
+}

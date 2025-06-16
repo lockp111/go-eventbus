@@ -12,7 +12,6 @@ A high-performance event bus model for Go, supporting generics, thread-safe, and
 - **Chainable API**: Convenient API design with chainable method calls
 - **Flexible Subscription**: Support for one-time events and persistent subscriptions
 - **Global Events**: Support for subscribing to all topics using the ALL constant
-- **Callback Support**: Rich callback mechanisms for event unsubscription
 - **Statistics**: Built-in support for event counting and topic statistics
 
 ## Installation
@@ -116,18 +115,6 @@ bus.Off("ready", handler)
 bus.Off("ready")
 ```
 
-### Unsubscribing with Callback - OffCb(topic string, cb OffCallback, es ...Event[T]) *Bus[T]
-
-```go
-handler := &ReadyHandler{}
-bus.On("ready", handler)
-
-// Unsubscribe and get results
-bus.OffCb("ready", func(count int, exists bool) {
-    fmt.Printf("Removed %d event handlers, topic exists: %v\n", count, exists)
-}, handler)
-```
-
 ### Triggering Events - Trigger(topic string, msg ...T) *Bus[T]
 
 Send messages to a specific topic:
@@ -184,8 +171,32 @@ fmt.Printf("Event bus has %d topics\n", topicCount)
 topic := bus.Get("message")
 if topic != nil {
     fmt.Printf("Topic has %d handlers\n", topic.Count())
+    
+    // Direct dispatch to topic for better performance
+    // This avoids the overhead of topic lookup in the bus
+    topic.Dispatch("direct message")
 }
 ```
+
+### Performance Optimization
+
+For high-performance scenarios, you can use the `Get` method to cache the topic reference and dispatch events directly:
+
+```go
+// Get and cache the topic reference
+messageTopic := bus.Get("message")
+if messageTopic != nil {
+    // Direct dispatch without bus lookup overhead
+    for i := 0; i < 1000; i++ {
+        messageTopic.Dispatch(fmt.Sprintf("message %d", i))
+    }
+}
+```
+
+This approach is particularly useful when:
+- You need to dispatch many events to the same topic
+- You want to minimize the overhead of topic lookup
+- You're working in a high-concurrency environment
 
 ### Clearing All Events - Clean() *Bus[T]
 
@@ -257,10 +268,12 @@ for i := 0; i < 100; i++ {
 `go-eventbus` is optimized for high-concurrency scenarios. Here are some benchmark results:
 
 ```
-BenchmarkOnTrigger-8                    3000000               399 ns/op              54 B/op          1 allocs/op
-BenchmarkConcurrentSubscribeAndTrigger-8  100000             17890 ns/op            2156 B/op         21 allocs/op
-BenchmarkSubscribeUnsubscribe-8          1000000              1035 ns/op             168 B/op          2 allocs/op
-BenchmarkHighConcurrentReadWrite-8         50000             30120 ns/op            3012 B/op         30 allocs/op
+BenchmarkOnTrigger-14                           18754964                64.34 ns/op            0 B/op          0 allocs/op
+BenchmarkConcurrentSubscribeAndTrigger-14       15510948                76.08 ns/op           37 B/op          2 allocs/op
+BenchmarkSubscribeUnsubscribe-14                 2837731               364.1 ns/op           224 B/op          9 allocs/op
+BenchmarkHighConcurrentReadWrite/Concurrency-100-14
+             1000000              2378 ns/op          40036115 dispatches    105.4 memory_MB
+BenchmarkGetAndTrigger-14                       98902462                16.00 ns/op           16 B/op          1 allocs/op
 ```
 
 Run the benchmarks:
