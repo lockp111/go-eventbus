@@ -12,18 +12,29 @@ const ALL = "*"
 // Bus struct
 type Bus[T any] struct {
 	allowAsterisk bool
+	asterisk      *Topic[T]
 	topics        cmap.ConcurrentMap[string, *Topic[T]]
 }
 
 // New - return a new Bus topicHandlerject
 func New[T any]() *Bus[T] {
 	return &Bus[T]{
-		topics: cmap.New[*Topic[T]](),
+		allowAsterisk: false,
+		asterisk:      newTopic[T](ALL, nil, nil),
+		topics:        cmap.New[*Topic[T]](),
 	}
 }
 
 // AllowAsterisk - allow asterisk topic
 func (b *Bus[T]) AllowAsterisk() *Bus[T] {
+	b.topics.Upsert(ALL, func(oldValue *Topic[T], exist bool) *Topic[T] {
+		if !exist {
+			return b.asterisk
+		}
+		// swap topic
+		b.asterisk = oldValue
+		return oldValue
+	})
 	b.allowAsterisk = true
 	return b
 }
@@ -104,10 +115,7 @@ func (b *Bus[T]) Get(topic string) *Topic[T] {
 func (b *Bus[T]) addEvent(topic string, isUnique bool, e Event[T]) {
 	b.topics.Upsert(topic, func(oldValue *Topic[T], exist bool) *Topic[T] {
 		if !exist {
-			oldValue = &Topic[T]{
-				name:   topic,
-				events: make([]*event[T], 0),
-			}
+			oldValue = newTopic(topic, &b.allowAsterisk, b.asterisk)
 		}
 
 		oldValue.addEvent(e, isUnique)
@@ -129,7 +137,8 @@ func (b *Bus[T]) removeEvents(topic string, es []Event[T]) {
 			return true
 		}
 		removed = topicHandler.removeEvents(vs)
-		return topicHandler.Count() == 0
+		// if topic is ALL, we don't need to remove the topic
+		return topicHandler.Count() == 0 && topic != ALL
 	})
 
 	if len(removed) > 0 {
@@ -144,19 +153,19 @@ func (b *Bus[T]) dispatch(topic string, data []T) {
 		}
 		topicHandler.Dispatch(data...)
 	})
-
-	if b.allowAsterisk && topic != ALL {
-		b.topics.GetCb(ALL, func(topicHandler *Topic[T], exists bool) {
-			if !exists {
-				return
-			}
-			topicHandler.Dispatch(data...)
-		})
-	}
 }
 
 func (b *Bus[T]) broadcast(data []T) {
-	b.topics.IterCb(func(_ string, topicHandler *Topic[T]) {
-		topicHandler.Dispatch(data...)
+	b.topics.IterCb(func(topic string, topicHandler *Topic[T]) {
+		var (
+			removed []*event[T]
+			removes = topicHandler.dispatch(data)
+		)
+		if len(removes) > 0 {
+			removed = topicHandler.removeEvents(removes)
+		}
+		if len(removed) > 0 {
+			go onStop(topic, removed)
+		}
 	})
 }

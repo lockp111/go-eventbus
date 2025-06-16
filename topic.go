@@ -8,8 +8,22 @@ import (
 
 // Topic represents a topic and its associated event handlers
 type Topic[T any] struct {
-	name   string
-	events []*event[T]
+	name          string
+	events        []*event[T]
+	allowAsterisk *bool
+	asterisk      *Topic[T]
+}
+
+func newTopic[T any](name string, allowAsterisk *bool, asterisk *Topic[T]) *Topic[T] {
+	topic := &Topic[T]{
+		name:   name,
+		events: make([]*event[T], 0),
+	}
+	if name != ALL {
+		topic.allowAsterisk = allowAsterisk
+		topic.asterisk = asterisk
+	}
+	return topic
 }
 
 func (t *Topic[T]) Dispatch(data ...T) {
@@ -17,6 +31,10 @@ func (t *Topic[T]) Dispatch(data ...T) {
 		removed []*event[T]
 		removes = t.dispatch(data)
 	)
+
+	if t.name != ALL && *t.allowAsterisk {
+		removes = append(removes, t.asterisk.dispatch(data)...)
+	}
 
 	if len(removes) > 0 {
 		removed = t.removeEvents(removes)
@@ -61,7 +79,7 @@ func (t *Topic[T]) removeEvents(es []reflect.Value) []*event[T] {
 }
 
 func (t *Topic[T]) dispatch(data []T) []reflect.Value {
-	var removes = make([]reflect.Value, 0)
+	var removes = make([]reflect.Value, 0, 1024)
 	for _, e := range t.events {
 		if !e.isUnique {
 			e.Dispatch(t.name, data)
